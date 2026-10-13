@@ -1,5 +1,5 @@
-// Vercel Serverless Function: nhận form từ index.html rồi publish lên EMQX
-const mqtt = require('mqtt');
+// Bước 1: nhận tên/gmail/sđt, gửi lên Node-RED để tạo PIN và gửi mail
+const { askNodeRed } = require('./_mqtt');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -18,27 +18,16 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
   }
 
-  const payload = JSON.stringify({
-    name: String(name).slice(0, 100),
-    email: String(email).slice(0, 100),
-    phone: String(phone),
-    time: new Date().toISOString()
-  });
-
-  let client;
   try {
-    // Cấu hình lấy từ Environment Variables trên Vercel
-    client = await mqtt.connectAsync(`mqtts://${process.env.MQTT_HOST}:8883`, {
-      username: process.env.MQTT_USER,
-      password: process.env.MQTT_PASS,
-      clientId: 'vercel_' + Math.random().toString(16).slice(2, 10),
-      connectTimeout: 8000
+    const result = await askNodeRed('', {
+      name: String(name).trim().slice(0, 100),
+      email: String(email).trim().toLowerCase().slice(0, 100),
+      phone: String(phone),
+      time: new Date().toISOString()
     });
-    await client.publishAsync(process.env.MQTT_TOPIC, payload, { qos: 1 });
-    await client.endAsync();
+    if (!result.ok) return res.status(400).json({ error: result.error || 'Lỗi' });
     return res.status(200).json({ ok: true });
   } catch (err) {
-    if (client) client.end(true);
-    return res.status(500).json({ error: 'Không gửi được tới MQTT: ' + err.message });
+    return res.status(500).json({ error: err.message });
   }
 };

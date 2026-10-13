@@ -27,11 +27,19 @@
       color: #fff; background: #0f766e; border: 0; border-radius: 8px; cursor: pointer;
     }
     button:disabled { opacity: .6; cursor: wait; }
-    #msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
+    .msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
     .ok { color: #15803d; } .err { color: #b91c1c; }
+    .hidden { display: none; }
+    .note { font-size: 14px; color: #475569; text-align: center; margin: 0 0 8px; }
+    #pin { text-align: center; font-size: 24px; letter-spacing: 8px; }
+    .link {
+      background: none; color: #0f766e; font-weight: 500; font-size: 14px;
+      margin-top: 10px; padding: 6px; text-decoration: underline;
+    }
   </style>
 </head>
 <body>
+  <!-- Bước 1: nhập thông tin -->
   <form class="card" id="form">
     <h1>Đăng nhập</h1>
 
@@ -44,44 +52,102 @@
     <label for="phone">Số điện thoại</label>
     <input id="phone" name="phone" type="tel" required placeholder="0912345678" pattern="(0|\+84)[0-9]{9,10}">
 
-    <button type="submit" id="btn">Gửi</button>
-    <div id="msg"></div>
+    <button type="submit" id="btn">Gửi mã xác thực</button>
+    <div class="msg" id="msg"></div>
   </form>
 
+  <!-- Bước 2: nhập mã PIN -->
+  <form class="card hidden" id="pinForm">
+    <h1>Nhập mã PIN</h1>
+    <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút)</p>
+
+    <input id="pin" name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="------" autocomplete="one-time-code">
+
+    <button type="submit" id="pinBtn">Xác nhận</button>
+    <button type="button" class="link" id="resend">Gửi lại mã</button>
+    <button type="button" class="link" id="back">Quay lại</button>
+    <div class="msg" id="pinMsg"></div>
+  </form>
+
+  <!-- Bước 3: thành công -->
+  <div class="card hidden" id="done">
+    <h1>Xác thực thành công</h1>
+    <p class="note">Thông tin của bạn đã được lưu.</p>
+  </div>
+
   <script>
-    const form = document.getElementById('form');
-    const btn = document.getElementById('btn');
-    const msg = document.getElementById('msg');
+    const $ = (id) => document.getElementById(id);
+    const form = $('form'), pinForm = $('pinForm');
+    let info = null;
+
+    async function post(url, data) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Lỗi không xác định');
+      return out;
+    }
+
+    function show(el, text, cls) { el.className = 'msg ' + (cls || ''); el.textContent = text; }
+
+    async function sendCode(btn, msgEl) {
+      btn.disabled = true;
+      show(msgEl, 'Đang gửi mã...');
+      try {
+        await post('/api/send', info);
+        return true;
+      } catch (err) {
+        show(msgEl, 'Lỗi: ' + err.message, 'err');
+        return false;
+      } finally {
+        btn.disabled = false;
+      }
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      btn.disabled = true;
-      msg.className = '';
-      msg.textContent = 'Đang gửi...';
-
-      const data = {
+      info = {
         name: form.name.value.trim(),
         email: form.email.value.trim(),
         phone: form.phone.value.trim()
       };
-
-      try {
-        const res = await fetch('/api/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const out = await res.json();
-        if (!res.ok) throw new Error(out.error || 'Lỗi không xác định');
-        msg.className = 'ok';
-        msg.textContent = 'Gửi thành công!';
-        form.reset();
-      } catch (err) {
-        msg.className = 'err';
-        msg.textContent = 'Lỗi: ' + err.message;
-      } finally {
-        btn.disabled = false;
+      if (await sendCode($('btn'), $('msg'))) {
+        show($('msg'), '');
+        $('sentTo').textContent = info.email;
+        form.classList.add('hidden');
+        pinForm.classList.remove('hidden');
+        $('pin').focus();
       }
+    });
+
+    pinForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('pinBtn').disabled = true;
+      show($('pinMsg'), 'Đang kiểm tra...');
+      try {
+        await post('/api/verify', { email: info.email, pin: $('pin').value.trim() });
+        pinForm.classList.add('hidden');
+        $('done').classList.remove('hidden');
+      } catch (err) {
+        show($('pinMsg'), err.message, 'err');
+        $('pin').select();
+      } finally {
+        $('pinBtn').disabled = false;
+      }
+    });
+
+    $('resend').addEventListener('click', async () => {
+      if (await sendCode($('resend'), $('pinMsg'))) show($('pinMsg'), 'Đã gửi mã mới', 'ok');
+    });
+
+    $('back').addEventListener('click', () => {
+      pinForm.classList.add('hidden');
+      form.classList.remove('hidden');
+      $('pin').value = '';
+      show($('pinMsg'), '');
     });
   </script>
 </body>
