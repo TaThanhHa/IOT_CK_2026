@@ -29,56 +29,113 @@
     button:disabled { opacity: .6; cursor: wait; }
     .msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
     .ok { color: #15803d; } .err { color: #b91c1c; }
-    .hidden { display: none; }
+    .hidden { display: none !important; }
     .note { font-size: 14px; color: #475569; text-align: center; margin: 0 0 8px; }
     #pin { text-align: center; font-size: 24px; letter-spacing: 8px; }
     .link {
       background: none; color: #0f766e; font-weight: 500; font-size: 14px;
       margin-top: 10px; padding: 6px; text-decoration: underline;
     }
+    .tabs {
+      display: flex; gap: 4px; padding: 4px; margin-bottom: 20px;
+      background: #f1f5f9; border-radius: 10px;
+    }
+    .tab {
+      margin: 0; padding: 9px; font-size: 15px; font-weight: 600;
+      background: none; color: #64748b; border-radius: 7px;
+    }
+    .tab.active { background: #fff; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
   </style>
 </head>
 <body>
-  <!-- Bước 1: nhập thông tin -->
-  <form class="card" id="form">
-    <h1>Đăng nhập</h1>
+  <div class="card">
+    <div class="tabs" id="tabs">
+      <button type="button" class="tab active" data-view="reg">Đăng ký</button>
+      <button type="button" class="tab" data-view="login">Đăng nhập</button>
+    </div>
 
-    <label for="name">Họ và tên</label>
-    <input id="name" name="name" required placeholder="Nguyễn Văn A">
+    <!-- Đăng ký -->
+    <form class="view" id="reg">
+      <label for="name">Họ và tên</label>
+      <input id="name" required maxlength="100" placeholder="Nguyễn Văn A">
 
-    <label for="email">Gmail</label>
-    <input id="email" name="email" type="email" required placeholder="abc@gmail.com">
+      <label for="email">Gmail</label>
+      <input id="email" type="email" required placeholder="abc@gmail.com"
+             pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
 
-    <label for="phone">Số điện thoại</label>
-    <input id="phone" name="phone" type="tel" required placeholder="0912345678" pattern="(0|\+84)[0-9]{9,10}">
+      <label for="phone">Số điện thoại</label>
+      <input id="phone" type="tel" required placeholder="0912345678"
+             pattern="(0|\+84)[0-9]{9,10}" title="Số điện thoại bắt đầu bằng 0 hoặc +84">
 
-    <button type="submit" id="btn">Gửi mã xác thực</button>
-    <div class="msg" id="msg"></div>
-  </form>
+      <button type="submit" id="regBtn">Gửi mã xác thực</button>
+      <div class="msg" id="regMsg"></div>
+    </form>
 
-  <!-- Bước 2: nhập mã PIN -->
-  <form class="card hidden" id="pinForm">
-    <h1>Nhập mã PIN</h1>
-    <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút)</p>
+    <!-- Đăng nhập -->
+    <form class="view hidden" id="login">
+      <label for="loginEmail">Gmail đã đăng ký</label>
+      <input id="loginEmail" type="email" required placeholder="abc@gmail.com"
+             pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
 
-    <input id="pin" name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="------" autocomplete="one-time-code">
+      <button type="submit" id="loginBtn">Gửi mã đăng nhập</button>
+      <div class="msg" id="loginMsg"></div>
+    </form>
 
-    <button type="submit" id="pinBtn">Xác nhận</button>
-    <button type="button" class="link" id="resend">Gửi lại mã</button>
-    <button type="button" class="link" id="back">Quay lại</button>
-    <div class="msg" id="pinMsg"></div>
-  </form>
+    <!-- Nhập mã PIN (dùng chung) -->
+    <form class="view hidden" id="pinForm">
+      <h1>Nhập mã PIN</h1>
+      <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút)</p>
 
-  <!-- Bước 3: thành công -->
-  <div class="card hidden" id="done">
-    <h1>Xác thực thành công</h1>
-    <p class="note">Thông tin của bạn đã được lưu.</p>
+      <input id="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
+             placeholder="------" autocomplete="one-time-code">
+
+      <button type="submit" id="pinBtn">Xác nhận</button>
+      <button type="button" class="link" id="resend">Gửi lại mã</button>
+      <button type="button" class="link" id="back">Quay lại</button>
+      <div class="msg" id="pinMsg"></div>
+    </form>
+
+    <!-- Đăng ký thành công -->
+    <div class="view hidden" id="done">
+      <h1>Đăng ký thành công</h1>
+      <p class="note">Thông tin của bạn đã được lưu.</p>
+      <button type="button" id="toLogin">Đăng nhập</button>
+    </div>
+
+    <!-- Sửa thông tin sau khi đăng nhập -->
+    <form class="view hidden" id="profile">
+      <h1>Thông tin của bạn</h1>
+      <p class="note" id="pEmail"></p>
+
+      <label for="pName">Họ và tên</label>
+      <input id="pName" required maxlength="100">
+
+      <label for="pPhone">Số điện thoại</label>
+      <input id="pPhone" type="tel" required pattern="(0|\+84)[0-9]{9,10}"
+             title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+
+      <button type="submit" id="saveBtn">Lưu thay đổi</button>
+      <button type="button" class="link" id="logout">Đăng xuất</button>
+      <div class="msg" id="profileMsg"></div>
+    </form>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const form = $('form'), pinForm = $('pinForm');
-    let info = null;
+    let mode = 'register';  // mã PIN đang dùng cho 'register' hay 'login'
+    let info = null;        // thông tin đang chờ xác thực
+    let token = null;       // phiên đăng nhập do Node-RED cấp (15 phút)
+
+    function show(el, text, cls) { el.className = 'msg ' + (cls || ''); el.textContent = text; }
+
+    // Hiện 1 màn hình, ẩn các màn khác; thanh tab chỉ hiện ở Đăng ký / Đăng nhập
+    function view(id) {
+      document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.id !== id));
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === id));
+      $('tabs').classList.toggle('hidden', id !== 'reg' && id !== 'login');
+      document.querySelectorAll('.msg').forEach((m) => show(m, ''));
+    }
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => view(t.dataset.view)));
 
     async function post(url, data) {
       const res = await fetch(url, {
@@ -91,63 +148,94 @@
       return out;
     }
 
-    function show(el, text, cls) { el.className = 'msg ' + (cls || ''); el.textContent = text; }
-
-    async function sendCode(btn, msgEl) {
+    // Khoá nút trong lúc chờ, hiện lỗi nếu có
+    async function run(btn, msgEl, text, fn) {
       btn.disabled = true;
-      show(msgEl, 'Đang gửi mã...');
-      try {
-        await post('/api/send', info);
-        return true;
-      } catch (err) {
-        show(msgEl, 'Lỗi: ' + err.message, 'err');
-        return false;
-      } finally {
-        btn.disabled = false;
-      }
+      show(msgEl, text);
+      try { await fn(); }
+      catch (err) { show(msgEl, err.message, 'err'); }
+      finally { btn.disabled = false; }
     }
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      info = {
-        name: form.name.value.trim(),
-        email: form.email.value.trim(),
-        phone: form.phone.value.trim()
-      };
-      if (await sendCode($('btn'), $('msg'))) {
-        show($('msg'), '');
-        $('sentTo').textContent = info.email;
-        form.classList.add('hidden');
-        pinForm.classList.remove('hidden');
-        $('pin').focus();
-      }
-    });
+    function requestPin() {
+      return post(mode === 'register' ? '/api/register' : '/api/login', info);
+    }
 
-    pinForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      $('pinBtn').disabled = true;
-      show($('pinMsg'), 'Đang kiểm tra...');
-      try {
-        await post('/api/verify', { email: info.email, pin: $('pin').value.trim() });
-        pinForm.classList.add('hidden');
-        $('done').classList.remove('hidden');
-      } catch (err) {
-        show($('pinMsg'), err.message, 'err');
-        $('pin').select();
-      } finally {
-        $('pinBtn').disabled = false;
-      }
-    });
-
-    $('resend').addEventListener('click', async () => {
-      if (await sendCode($('resend'), $('pinMsg'))) show($('pinMsg'), 'Đã gửi mã mới', 'ok');
-    });
-
-    $('back').addEventListener('click', () => {
-      pinForm.classList.add('hidden');
-      form.classList.remove('hidden');
+    function goPin() {
+      view('pinForm');
+      $('sentTo').textContent = info.email;
       $('pin').value = '';
-      show($('pinMsg'), '');
+      $('pin').focus();
+    }
+
+    function fillProfile(u) {
+      $('pEmail').textContent = u.email;
+      $('pName').value = u.name;
+      $('pPhone').value = u.phone;
+    }
+
+    $('reg').addEventListener('submit', (e) => {
+      e.preventDefault();
+      mode = 'register';
+      info = {
+        name: $('name').value.trim(),
+        email: $('email').value.trim().toLowerCase(),
+        phone: $('phone').value.trim()
+      };
+      run($('regBtn'), $('regMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
+    });
+
+    $('login').addEventListener('submit', (e) => {
+      e.preventDefault();
+      mode = 'login';
+      info = { email: $('loginEmail').value.trim().toLowerCase() };
+      run($('loginBtn'), $('loginMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
+    });
+
+    $('pinForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      run($('pinBtn'), $('pinMsg'), 'Đang kiểm tra...', async () => {
+        const out = await post('/api/verify', { email: info.email, pin: $('pin').value.trim() });
+        if (out.mode === 'login') {
+          token = out.token;
+          view('profile');
+          fillProfile(out.user);
+        } else {
+          view('done');
+        }
+      });
+    });
+
+    $('resend').addEventListener('click', () => {
+      run($('resend'), $('pinMsg'), 'Đang gửi mã...', async () => {
+        await requestPin();
+        show($('pinMsg'), 'Đã gửi mã mới', 'ok');
+      });
+    });
+
+    $('back').addEventListener('click', () => view(mode === 'register' ? 'reg' : 'login'));
+
+    $('toLogin').addEventListener('click', () => {
+      $('loginEmail').value = info.email;
+      view('login');
+    });
+
+    $('profile').addEventListener('submit', (e) => {
+      e.preventDefault();
+      run($('saveBtn'), $('profileMsg'), 'Đang lưu...', async () => {
+        const out = await post('/api/update', {
+          token,
+          name: $('pName').value.trim(),
+          phone: $('pPhone').value.trim()
+        });
+        fillProfile(out.user);
+        show($('profileMsg'), 'Đã lưu thay đổi', 'ok');
+      });
+    });
+
+    $('logout').addEventListener('click', () => {
+      token = null;
+      view('login');
     });
   </script>
 </body>
