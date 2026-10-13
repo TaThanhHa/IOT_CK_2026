@@ -34,7 +34,7 @@ module.exports = async (req, res) => {
       clientId: 'vercel_' + Math.random().toString(16).slice(2, 10),
       connectTimeout: 8000
     });
-    await client.publishAsync(process.env.MQTT_TOPIC || 'xacthuc/user', payload, { qos: 1 });
+    await client.publishAsync(process.env.MQTT_TOPIC, payload, { qos: 1 });
     await client.endAsync();
     return res.status(200).json({ ok: true });
   } catch (err) {
