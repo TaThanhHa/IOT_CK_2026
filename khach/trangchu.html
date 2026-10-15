@@ -5,51 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Khách hàng - Trang của bạn</title>
   <link rel="stylesheet" href="/style.css">
-  <style>
-    .orders { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; }
-    .empty { font-size: 14px; color: #64748b; text-align: center; margin: 0; }
-  </style>
 </head>
 <body>
   <div class="card">
-    <div class="orders">
-      <h2>📦 Hàng chờ nhận</h2>
-      <p class="empty">Chức năng lấy hàng đang được phát triển</p>
-    </div>
+    <!-- Lấy hàng: mỗi đơn 1 khung -->
+    <h2>📦 Hàng chờ nhận</h2>
+    <div id="dsDon"><p class="note">Đang tải...</p></div>
+    <div class="msg" id="donMsg"></div>
 
-    <form id="profile">
-      <h2>Thông tin của bạn</h2>
-      <p class="note" id="pEmail" style="text-align:left"></p>
+    <!-- Sửa thông tin: bấm để mở -->
+    <details class="sua" id="suaBox">
+      <summary>✏️ Sửa thông tin</summary>
+      <form id="profile">
+        <p class="note" id="pEmail" style="text-align:left"></p>
 
-      <label for="pName">Họ và tên</label>
-      <input id="pName" required maxlength="100">
+        <label for="pName">Họ và tên</label>
+        <input id="pName" required maxlength="100">
 
-      <label for="pPhone">Số điện thoại</label>
-      <input id="pPhone" type="tel" required pattern="(0|\+84)[0-9]{9,10}"
-             title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+        <label for="pPhone">Số điện thoại</label>
+        <input id="pPhone" type="tel" required pattern="(0|\+84)[0-9]{9,10}"
+               title="Số điện thoại bắt đầu bằng 0 hoặc +84">
 
-      <button type="submit" id="saveBtn">Lưu thay đổi</button>
-      <button type="button" class="link" id="logout">Đăng xuất</button>
-      <div class="msg" id="profileMsg"></div>
-    </form>
+        <button type="submit" id="saveBtn">Lưu thay đổi</button>
+        <div class="msg" id="profileMsg"></div>
+      </form>
+    </details>
+
+    <button type="button" class="link" id="logout">Đăng xuất</button>
   </div>
 
   <script src="/common.js"></script>
+  <script src="/khach/layhang.js"></script>
   <script>
     // Phiên đăng nhập do trang dangnhap.html lưu (token Node-RED cấp, hiệu lực 15 phút)
     const phien = load(sessionStorage, 'phien');
     if (!phien) location.replace('dangnhap.html');
 
+    function hetPhien(err) {   // phiên hết hạn → về trang đăng nhập
+      if (!/^Phiên/.test(err.message)) return;
+      keep(sessionStorage, 'phien', null);
+      setTimeout(() => { location.href = 'dangnhap.html'; }, 1500);
+    }
+
+    // ---------- Hàng chờ nhận ----------
+    async function taiDon() {
+      const box = $('dsDon');
+      try {
+        const out = await post('/api/lay', { action: 'ds', token: phien.token });
+        box.innerHTML = '';
+        if (!out.ds.length) {
+          box.innerHTML = '<p class="note">Không có đơn nào</p>';
+          return;
+        }
+        out.ds.forEach((don) => {
+          const khung = taoEl('div', 'don');
+          box.appendChild(khung);
+          veDon(khung, don, phien.token, () => setTimeout(taiDon, 3000));
+        });
+      } catch (err) {
+        box.innerHTML = '';
+        show($('donMsg'), err.message, 'err');
+        hetPhien(err);
+      }
+    }
+
+    // ---------- Sửa thông tin ----------
     function fillProfile(u) {
       $('pEmail').textContent = u.email;
       $('pName').value = u.name;
       $('pPhone').value = u.phone;
-    }
-    if (phien) fillProfile(phien.user);
-
-    function logout() {
-      keep(sessionStorage, 'phien', null);
-      location.href = 'dangnhap.html';
     }
 
     $('profile').addEventListener('submit', (e) => {
@@ -65,17 +89,23 @@
           keep(sessionStorage, 'phien', phien);
           fillProfile(out.user);
           show($('profileMsg'), 'Đã lưu thay đổi', 'ok');
+          taiDon();   // đổi SĐT thì danh sách đơn cũng đổi
         } catch (err) {
-          if (/^Phiên/.test(err.message)) {   // phiên hết hạn → đăng nhập lại
-            keep(sessionStorage, 'phien', null);
-            setTimeout(() => { location.href = 'dangnhap.html'; }, 1500);
-          }
+          hetPhien(err);
           throw err;
         }
       });
     });
 
-    $('logout').addEventListener('click', logout);
+    $('logout').addEventListener('click', () => {
+      keep(sessionStorage, 'phien', null);
+      location.href = 'dangnhap.html';
+    });
+
+    if (phien) {
+      fillProfile(phien.user);
+      taiDon();
+    }
   </script>
 </body>
 </html>
