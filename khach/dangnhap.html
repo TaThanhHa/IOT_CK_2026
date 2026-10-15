@@ -9,12 +9,12 @@
 <body>
   <div class="card">
     <div class="tabs" id="tabs">
-      <button type="button" class="tab active" data-view="reg">Đăng ký</button>
-      <button type="button" class="tab" data-view="login">Đăng nhập</button>
+      <button type="button" class="tab active" data-view="login">Đăng nhập</button>
+      <button type="button" class="tab" data-view="reg">Đăng ký</button>
     </div>
 
     <!-- Đăng ký -->
-    <form class="view" id="reg">
+    <form class="view hidden" id="reg">
       <label for="name">Họ và tên</label>
       <input id="name" required maxlength="100" placeholder="Nguyễn Văn A">
 
@@ -31,7 +31,7 @@
     </form>
 
     <!-- Đăng nhập -->
-    <form class="view hidden" id="login">
+    <form class="view" id="login">
       <label for="loginEmail">Gmail đã đăng ký</label>
       <input id="loginEmail" type="email" required placeholder="abc@gmail.com"
              pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
@@ -66,7 +66,7 @@
 
   <script src="/common.js"></script>
   <script>
-    let mode = 'register';  // mã PIN đang dùng cho 'register' hay 'login'
+    let mode = 'login';     // mã PIN đang dùng cho 'register' hay 'login'
     let info = null;        // thông tin đang chờ xác thực
 
     // Hiện 1 màn hình, ẩn các màn khác; thanh tab chỉ hiện ở Đăng ký / Đăng nhập
