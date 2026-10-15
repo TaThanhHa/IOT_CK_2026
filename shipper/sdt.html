@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shipper - Nhập SĐT khách</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="shipper">
+  <div class="card">
+    <form id="phoneForm">
+      <h1>Giao hàng vào tủ</h1>
+      <p class="note">Nhập số điện thoại người nhận</p>
+
+      <label for="phone">Số điện thoại khách</label>
+      <input id="phone" type="tel" required placeholder="0912345678" autocomplete="off"
+             pattern="(0|\+84)[0-9]{9,10}" title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+
+      <button type="submit" id="checkBtn">Tiếp tục</button>
+      <div class="msg" id="msg"></div>
+    </form>
+    <a class="link btn" href="/">← Trang chủ</a>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    // Đang có lượt giao dở (đã mở tủ) thì quay lại màn tủ
+    const dang = load(localStorage, 'giaoHang');
+    if (dang && dang.maLuot) location.replace('tu.html');
+
+    $('phoneForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const phone = $('phone').value.trim();
+      run($('checkBtn'), $('msg'), 'Đang tra cứu...', async () => {
+        const out = await post('/api/ship', { action: 'check', phone });
+        // Lượt giao mới: chưa có maLuot, sẽ có khi bấm ＋ lần đầu
+        keep(localStorage, 'giaoHang', { phone, name: out.name, soNguoi: out.soNguoi, trong: out.trong, maLuot: null });
+        location.href = 'tu.html';
+      });
+    });
+  </script>
+</body>
+</html>

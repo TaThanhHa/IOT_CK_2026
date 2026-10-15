@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Khách hàng - Trang của bạn</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .orders { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; }
+    .empty { font-size: 14px; color: #64748b; text-align: center; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="orders">
+      <h2>📦 Hàng chờ nhận</h2>
+      <p class="empty">Chức năng lấy hàng đang được phát triển</p>
+    </div>
+
+    <form id="profile">
+      <h2>Thông tin của bạn</h2>
+      <p class="note" id="pEmail" style="text-align:left"></p>
+
+      <label for="pName">Họ và tên</label>
+      <input id="pName" required maxlength="100">
+
+      <label for="pPhone">Số điện thoại</label>
+      <input id="pPhone" type="tel" required pattern="(0|\+84)[0-9]{9,10}"
+             title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+
+      <button type="submit" id="saveBtn">Lưu thay đổi</button>
+      <button type="button" class="link" id="logout">Đăng xuất</button>
+      <div class="msg" id="profileMsg"></div>
+    </form>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    // Phiên đăng nhập do trang dangnhap.html lưu (token Node-RED cấp, hiệu lực 15 phút)
+    const phien = load(sessionStorage, 'phien');
+    if (!phien) location.replace('dangnhap.html');
+
+    function fillProfile(u) {
+      $('pEmail').textContent = u.email;
+      $('pName').value = u.name;
+      $('pPhone').value = u.phone;
+    }
+    if (phien) fillProfile(phien.user);
+
+    function logout() {
+      keep(sessionStorage, 'phien', null);
+      location.href = 'dangnhap.html';
+    }
+
+    $('profile').addEventListener('submit', (e) => {
+      e.preventDefault();
+      run($('saveBtn'), $('profileMsg'), 'Đang lưu...', async () => {
+        try {
+          const out = await post('/api/update', {
+            token: phien.token,
+            name: $('pName').value.trim(),
+            phone: $('pPhone').value.trim()
+          });
+          phien.user = out.user;
+          keep(sessionStorage, 'phien', phien);
+          fillProfile(out.user);
+          show($('profileMsg'), 'Đã lưu thay đổi', 'ok');
+        } catch (err) {
+          if (/^Phiên/.test(err.message)) {   // phiên hết hạn → đăng nhập lại
+            keep(sessionStorage, 'phien', null);
+            setTimeout(() => { location.href = 'dangnhap.html'; }, 1500);
+          }
+          throw err;
+        }
+      });
+    });
+
+    $('logout').addEventListener('click', logout);
+  </script>
+</body>
+</html>

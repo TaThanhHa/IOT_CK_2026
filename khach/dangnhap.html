@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Khách hàng - Đăng nhập</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <div class="tabs" id="tabs">
+      <button type="button" class="tab active" data-view="reg">Đăng ký</button>
+      <button type="button" class="tab" data-view="login">Đăng nhập</button>
+    </div>
+
+    <!-- Đăng ký -->
+    <form class="view" id="reg">
+      <label for="name">Họ và tên</label>
+      <input id="name" required maxlength="100" placeholder="Nguyễn Văn A">
+
+      <label for="email">Gmail</label>
+      <input id="email" type="email" required placeholder="abc@gmail.com"
+             pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
+
+      <label for="phone">Số điện thoại</label>
+      <input id="phone" type="tel" required placeholder="0912345678"
+             pattern="(0|\+84)[0-9]{9,10}" title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+
+      <button type="submit" id="regBtn">Gửi mã xác thực</button>
+      <div class="msg" id="regMsg"></div>
+    </form>
+
+    <!-- Đăng nhập -->
+    <form class="view hidden" id="login">
+      <label for="loginEmail">Gmail đã đăng ký</label>
+      <input id="loginEmail" type="email" required placeholder="abc@gmail.com"
+             pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
+
+      <button type="submit" id="loginBtn">Gửi mã đăng nhập</button>
+      <div class="msg" id="loginMsg"></div>
+    </form>
+
+    <!-- Nhập mã PIN (dùng chung) -->
+    <form class="view hidden" id="pinForm">
+      <h1>Nhập mã PIN</h1>
+      <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút)</p>
+
+      <input id="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
+             placeholder="------" autocomplete="one-time-code">
+
+      <button type="submit" id="pinBtn">Xác nhận</button>
+      <button type="button" class="link" id="resend">Gửi lại mã</button>
+      <button type="button" class="link" id="back">Quay lại</button>
+      <div class="msg" id="pinMsg"></div>
+    </form>
+
+    <!-- Đăng ký thành công -->
+    <div class="view hidden" id="done">
+      <h1>Đăng ký thành công</h1>
+      <p class="note">Thông tin của bạn đã được lưu.</p>
+      <button type="button" id="toLogin">Đăng nhập</button>
+    </div>
+
+    <a class="link btn" href="/">← Trang chủ</a>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    let mode = 'register';  // mã PIN đang dùng cho 'register' hay 'login'
+    let info = null;        // thông tin đang chờ xác thực
+
+    // Hiện 1 màn hình, ẩn các màn khác; thanh tab chỉ hiện ở Đăng ký / Đăng nhập
+    function view(id) {
+      document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.id !== id));
+      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === id));
+      $('tabs').classList.toggle('hidden', id !== 'reg' && id !== 'login');
+      document.querySelectorAll('.msg').forEach((m) => show(m, ''));
+    }
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => view(t.dataset.view)));
+
+    function requestPin() {
+      return post(mode === 'register' ? '/api/register' : '/api/login', info);
+    }
+
+    function goPin() {
+      view('pinForm');
+      $('sentTo').textContent = info.email;
+      $('pin').value = '';
+      $('pin').focus();
+    }
+
+    $('reg').addEventListener('submit', (e) => {
+      e.preventDefault();
+      mode = 'register';
+      info = {
+        name: $('name').value.trim(),
+        email: $('email').value.trim().toLowerCase(),
+        phone: $('phone').value.trim()
+      };
+      run($('regBtn'), $('regMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
+    });
+
+    $('login').addEventListener('submit', (e) => {
+      e.preventDefault();
+      mode = 'login';
+      info = { email: $('loginEmail').value.trim().toLowerCase() };
+      run($('loginBtn'), $('loginMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
+    });
+
+    $('pinForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      run($('pinBtn'), $('pinMsg'), 'Đang kiểm tra...', async () => {
+        const out = await post('/api/verify', { email: info.email, pin: $('pin').value.trim() });
+        if (out.mode === 'login') {
+          // Lưu phiên (chỉ trong tab này) rồi sang trang sau đăng nhập
+          keep(sessionStorage, 'phien', { token: out.token, user: out.user });
+          location.href = 'trangchu.html';
+        } else {
+          view('done');
+        }
+      });
+    });
+
+    $('resend').addEventListener('click', () => {
+      run($('resend'), $('pinMsg'), 'Đang gửi mã...', async () => {
+        await requestPin();
+        show($('pinMsg'), 'Đã gửi mã mới', 'ok');
+      });
+    });
+
+    $('back').addEventListener('click', () => view(mode === 'register' ? 'reg' : 'login'));
+
+    $('toLogin').addEventListener('click', () => {
+      $('loginEmail').value = info.email;
+      view('login');
+    });
+
+    // Đã đăng nhập rồi thì vào thẳng trang sau đăng nhập
+    if (load(sessionStorage, 'phien')) location.href = 'trangchu.html';
+  </script>
+</body>
+</html>

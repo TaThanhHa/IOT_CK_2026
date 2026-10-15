@@ -3,9 +3,9 @@
 const mqtt = require('mqtt');
 const crypto = require('crypto');
 
-// Gửi yêu cầu {action, ...data} lên topic MQTT_TOPIC rồi chờ Node-RED trả lời
-async function askNodeRed(action, data, timeoutMs = 10000) {
-  const base = process.env.MQTT_TOPIC;
+// Gửi yêu cầu {action, ...data} lên topic (mặc định MQTT_TOPIC) rồi chờ Node-RED trả lời
+async function askNodeRed(action, data, base = process.env.MQTT_TOPIC, timeoutMs = 10000) {
+  if (!base) throw new Error('Chưa cài biến môi trường topic MQTT trên Vercel');
   const reply = `${base}/result/${crypto.randomBytes(8).toString('hex')}`;
 
   const client = await mqtt.connectAsync(`mqtts://${process.env.MQTT_HOST}:8883`, {

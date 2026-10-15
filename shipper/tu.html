@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shipper - Mở tủ</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="shipper">
+  <div class="card">
+
+    <!-- Bấm ＋ để mở từng tủ -->
+    <div class="view" id="luotView">
+      <h1 style="margin-bottom:4px">Giao cho <span id="khName"></span></h1>
+      <p class="note" id="khPhone"></p>
+
+      <div class="tiles" id="tiles"></div>
+      <div class="bar"><span id="progress"></span><span id="trongLeft"></span></div>
+
+      <p class="note" style="margin-top:14px">Bấm <b>＋</b> để mở thêm 1 tủ. Bỏ hàng, đóng hết cửa rồi bấm Xác nhận.</p>
+      <button type="button" id="confirmBtn">Xác nhận hoàn tất</button>
+      <button type="button" class="link" id="backBtn">← Nhập số khác</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <!-- Kết quả -->
+    <div class="view hidden" id="doneView">
+      <h1 id="doneTitle"></h1>
+      <ul class="result" id="doneList"></ul>
+      <button type="button" id="newBtn">Giao đơn mới</button>
+    </div>
+  </div>
+
+  <script src="/common.js"></script>
+  <script>
+    // Lượt giao: { phone, name, soNguoi, trong, maLuot, list } — lưu localStorage để tải lại trang không mất
+    const KEY = 'giaoHang';
+    const g = load(localStorage, KEY);
+    if (!g) location.replace('sdt.html');
+
+    const ship = (action, data) => post('/api/ship', Object.assign({ action }, data));
+    const save = () => keep(localStorage, KEY, g);
+
+    // ---------- Vẽ các ô tủ ----------
+    const TT = {
+      mo:   ['🔓', 'Đang mở'],
+      dong: ['✅', 'Đã đóng'],
+      loi:  ['⚠️', 'Lỗi']
+    };
+
+    // list = [{id, cua: 'mo'|'dong'|'loi'}], nhay = các tủ cần nhắc đóng
+    function render(nhay) {
+      const list = g.list || [];
+      const box = $('tiles');
+      box.innerHTML = '';
+      list.forEach((t) => {
+        const el = document.createElement('div');
+        el.className = 'tile ' + t.cua + ((nhay || []).includes(t.id) ? ' can-dong' : '');
+        el.innerHTML = `<b>Tủ ${t.id}</b><span class="icon">${TT[t.cua][0]}</span><span class="st">${TT[t.cua][1]}</span>`;
+        if (t.cua === 'dong') {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = 'Mở lại';
+          b.onclick = () => openTu(b, t.id);
+          el.appendChild(b);
+        }
+        box.appendChild(el);
+      });
+
+      const plus = document.createElement('button');
+      plus.type = 'button';
+      plus.className = 'plus';
+      plus.disabled = g.trong === 0;
+      plus.textContent = g.trong === 0 ? 'Hết tủ trống' : '＋';
+      plus.onclick = () => openTu(plus);
+      box.appendChild(plus);
+
+      const dung = list.filter((t) => t.cua !== 'loi');
+      $('progress').textContent = dung.length
+        ? `Đã đóng ${dung.filter((t) => t.cua === 'dong').length}/${dung.length}` : 'Chưa mở tủ nào';
+      $('trongLeft').textContent = g.trong ? `Còn ${g.trong} tủ trống` : '';
+      $('confirmBtn').disabled = dung.length === 0;
+      $('backBtn').classList.toggle('hidden', !!g.maLuot);   // đã mở tủ thì không quay lại được
+    }
+
+    // Cập nhật từ câu trả lời của Node-RED
+    function apply(out) {
+      if (out.maLuot) g.maLuot = out.maLuot;
+      if (out.luot) g.list = out.luot;
+      if (out.trong != null) g.trong = out.trong;
+      save();
+    }
+
+    // ---------- ＋ hoặc Mở lại ----------
+    function openTu(btn, id) {
+      run(btn, $('msg'), id ? `Đang mở lại tủ ${id}...` : 'Đang mở tủ...', async () => {
+        const out = await ship('open', { phone: g.phone, maLuot: g.maLuot || undefined, tu: id });
+        apply(out);
+        render();
+        show($('msg'), out.note || '', /lỗi|không/.test(out.note || '') ? 'err' : 'ok');
+      });
+    }
+
+    // ---------- Xác nhận ----------
+    $('confirmBtn').addEventListener('click', () => {
+      run($('confirmBtn'), $('msg'), 'Đang kiểm tra cửa tủ...', async () => {
+        const out = await ship('confirm', { maLuot: g.maLuot });
+        if (!out.xong) {
+          apply(out);
+          render(out.chuaDong);
+          show($('msg'), `Tủ ${out.chuaDong.join(', ')} chưa đóng. Hãy đóng cửa rồi bấm Xác nhận lại.`, 'err');
+          return;
+        }
+        keep(localStorage, KEY, null);
+        showDone(out);
+      });
+    });
+
+    function showDone(out) {
+      document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.id !== 'doneView'));
+      const list = $('doneList');
+      list.innerHTML = '';
+      const add = (text) => { const li = document.createElement('li'); li.textContent = text; list.appendChild(li); };
+
+      if (out.coHang.length) {
+        $('doneTitle').textContent = 'Đã giao xong';
+        add(`📦 Có hàng: tủ ${out.coHang.join(', ')}`);
+        add(out.daMail ? '✉️ Đã gửi mail báo khách kèm mã nhận hàng' : '⚠️ Chưa gửi được mail, khách vẫn thấy khi đăng nhập');
+      } else {
+        $('doneTitle').textContent = 'Không có kiện nào được gửi';
+      }
+      if (out.traLai.length) add(`↩️ Tủ trống đã trả lại: ${out.traLai.join(', ')}`);
+    }
+
+    $('newBtn').addEventListener('click', () => location.replace('sdt.html'));
+    $('backBtn').addEventListener('click', () => {
+      keep(localStorage, KEY, null);
+      location.replace('sdt.html');
+    });
+
+    // ---------- Mở trang ----------
+    if (g) {
+      $('khName').textContent = g.name;
+      $('khPhone').textContent = g.phone + (g.soNguoi > 1 ? ` · ${g.soNguoi} người dùng chung số` : '');
+      render();
+      if (!g.trong && !g.maLuot) show($('msg'), 'Hiện không còn tủ trống', 'err');
+
+      // Tải lại trang giữa chừng: hỏi Node-RED 1 lần để vẽ đúng trạng thái
+      if (g.maLuot) {
+        ship('status', { maLuot: g.maLuot }).then((out) => {
+          if (out.xong) { keep(localStorage, KEY, null); location.replace('sdt.html'); return; }
+          apply(out);
+          render();
+        }).catch((err) => {
+          if (/không còn/.test(err.message)) { keep(localStorage, KEY, null); location.replace('sdt.html'); }
+          else show($('msg'), err.message, 'err');
+        });
+      }
+    }
+  </script>
+</body>
+</html>
