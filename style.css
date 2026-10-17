@@ -57,6 +57,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .tile.can-dong { animation: nhay 1s infinite; }
 @keyframes nhay { 50% { box-shadow: 0 0 0 4px rgba(239,68,68,.35); } }
 .tile button { margin: 6px 0 0; padding: 3px 8px; font-size: 12px; font-weight: 500; width: auto; }
+.tile { position: relative; }
+.tile button.x {
+  position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; width: 22px; height: 22px; line-height: 22px;
+  border-radius: 50%; background: #e2e8f0; color: #475569; font-size: 12px;
+}
 .plus {
   margin: 0; min-height: 104px; font-size: 40px; font-weight: 300; border-radius: 10px;
   background: #fff; color: var(--c); border: 2px dashed currentColor;

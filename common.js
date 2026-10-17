@@ -39,3 +39,17 @@ function load(store, key) {
 function keep(store, key, value) {
   try { value == null ? store.removeItem(key) : store.setItem(key, JSON.stringify(value)); } catch (e) {}
 }
+
+// Mã thiết bị của shipper: chuỗi ngẫu nhiên tạo 1 lần, cất trong máy (lượt giao gắn với SĐT khách + máy này)
+let _thietBi = null;
+function thietBi() {
+  if (_thietBi) return _thietBi;
+  let tb = load(localStorage, 'thietBi');
+  if (!tb) {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    tb = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    keep(localStorage, 'thietBi', tb);
+  }
+  return (_thietBi = tb);
+}

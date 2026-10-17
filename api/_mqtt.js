@@ -81,11 +81,11 @@ function checkMatKhau(mk) {
 const isVe = (s) => /^[a-f0-9]{64}$/.test(s);
 const isTu = (s) => /^[A-Z0-9]{1,8}-[0-9]{1,3}$/.test(s);
 
-// "biet" = {mã tủ: số phiên bản} web đang biết, dùng cho hỏi rồi chờ
+// "biet" = {mã tủ (hoặc "luot"): số phiên bản} web đang biết, dùng cho hỏi rồi chờ
 function cleanBiet(b) {
   const out = {};
   if (b && typeof b === 'object') {
-    Object.keys(b).slice(0, 50).forEach((k) => { if (isTu(k) && Number.isInteger(b[k])) out[k] = b[k]; });
+    Object.keys(b).slice(0, 50).forEach((k) => { if ((isTu(k) || k === 'luot') && Number.isInteger(b[k])) out[k] = b[k]; });
   }
   return out;
 }

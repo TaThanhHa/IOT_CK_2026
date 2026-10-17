@@ -32,9 +32,11 @@
       e.preventDefault();
       const phone = $('phone').value.trim();
       run($('checkBtn'), $('msg'), 'Đang tra cứu...', async () => {
-        const out = await post('/api/ship', { action: 'check', phone });
-        // Lượt giao mới: chưa có maLuot, sẽ có khi bấm ＋ lần đầu
-        keep(localStorage, 'giaoHang', { phone, name: out.name, soNguoi: out.soNguoi, trong: out.trong, maLuot: null, luot: [] });
+        const out = await post('/api/ship', { action: 'check', phone, thietBi: thietBi() });
+        // Máy này đang có lượt dở cho SĐT này (thoát ra rồi vào lại) → dùng tiếp; không thì lượt mới, có maLuot khi bấm ＋
+        const tt = out.tiepTuc;
+        keep(localStorage, 'giaoHang', { phone, name: out.name, soNguoi: out.soNguoi, trong: out.trong,
+          maLuot: tt ? tt.maLuot : null, luot: tt ? tt.luot : [] });
         location.href = 'tu.html';
       });
     });
