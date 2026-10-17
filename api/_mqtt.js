@@ -20,7 +20,7 @@ async function askNodeRed(action, data, base = process.env.MQTT_TOPIC, timeoutMs
 
     const answer = new Promise((resolve, reject) => {
       const timer = setTimeout(
-        () => reject(new Error('Máy chủ xác thực (Node-RED) không phản hồi')),
+        () => reject(new Error('Máy chủ (Node-RED) không phản hồi')),
         timeoutMs
       );
       client.on('message', (t, buf) => {
@@ -73,4 +73,24 @@ function checkInfo(name, phone) {
   return null;
 }
 
-module.exports = { askNodeRed, api, fail, cleanEmail, checkEmail, checkInfo };
+function checkMatKhau(mk) {
+  return typeof mk === 'string' && mk.length >= 6 && mk.length <= 100 ? null : 'Mật khẩu phải có từ 6 ký tự';
+}
+
+// Vé ghi nhớ đăng nhập (64 hex)
+const isVe = (s) => /^[a-f0-9]{64}$/.test(s);
+const isTu = (s) => /^[A-Z0-9]{1,8}-[0-9]{1,3}$/.test(s);
+
+// "biet" = {mã tủ: số phiên bản} web đang biết, dùng cho hỏi rồi chờ
+function cleanBiet(b) {
+  const out = {};
+  if (b && typeof b === 'object') {
+    Object.keys(b).slice(0, 50).forEach((k) => { if (isTu(k) && Number.isInteger(b[k])) out[k] = b[k]; });
+  }
+  return out;
+}
+
+// Hỏi rồi chờ: Node-RED trả trong ~6,5 s, chờ tối đa 9 s cho vừa giới hạn 10 s của Vercel
+const CHO_MS = 9000;
+
+module.exports = { askNodeRed, api, fail, cleanEmail, checkEmail, checkInfo, checkMatKhau, isVe, isTu, cleanBiet, CHO_MS };

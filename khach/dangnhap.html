@@ -13,37 +13,65 @@
       <button type="button" class="tab" data-view="reg">Đăng ký</button>
     </div>
 
+    <!-- Đăng nhập -->
+    <form class="view" id="login">
+      <label for="loginEmail">Gmail</label>
+      <input id="loginEmail" type="email" required placeholder="abc@gmail.com" autocomplete="username"
+             pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
+
+      <label for="loginMk">Mật khẩu</label>
+      <input id="loginMk" type="password" required autocomplete="current-password">
+
+      <button type="submit" id="loginBtn">Đăng nhập</button>
+      <button type="button" class="link" id="toQuen">Quên mật khẩu?</button>
+      <div class="msg" id="loginMsg"></div>
+    </form>
+
     <!-- Đăng ký -->
     <form class="view hidden" id="reg">
       <label for="name">Họ và tên</label>
-      <input id="name" required maxlength="100" placeholder="Nguyễn Văn A">
+      <input id="name" required maxlength="100" placeholder="Nguyễn Văn A" autocomplete="name">
 
       <label for="email">Gmail</label>
-      <input id="email" type="email" required placeholder="abc@gmail.com"
+      <input id="email" type="email" required placeholder="abc@gmail.com" autocomplete="username"
              pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
 
       <label for="phone">Số điện thoại</label>
-      <input id="phone" type="tel" required placeholder="0912345678"
+      <input id="phone" type="tel" required placeholder="0912345678" autocomplete="tel"
              pattern="(0|\+84)[0-9]{9,10}" title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+
+      <label for="regMk">Mật khẩu</label>
+      <input id="regMk" type="password" required minlength="6" maxlength="100" autocomplete="new-password">
+
+      <label for="regMk2">Nhập lại mật khẩu</label>
+      <input id="regMk2" type="password" required minlength="6" maxlength="100" autocomplete="new-password">
 
       <button type="submit" id="regBtn">Gửi mã xác thực</button>
       <div class="msg" id="regMsg"></div>
     </form>
 
-    <!-- Đăng nhập -->
-    <form class="view" id="login">
-      <label for="loginEmail">Gmail đã đăng ký</label>
-      <input id="loginEmail" type="email" required placeholder="abc@gmail.com"
+    <!-- Quên mật khẩu -->
+    <form class="view hidden" id="quen">
+      <h1>Đặt lại mật khẩu</h1>
+      <label for="quenEmail">Gmail đã đăng ký</label>
+      <input id="quenEmail" type="email" required placeholder="abc@gmail.com" autocomplete="username"
              pattern="[a-zA-Z0-9.+]+@gmail\.com" title="Chỉ chấp nhận địa chỉ @gmail.com">
 
-      <button type="submit" id="loginBtn">Gửi mã đăng nhập</button>
-      <div class="msg" id="loginMsg"></div>
+      <label for="quenMk">Mật khẩu mới</label>
+      <input id="quenMk" type="password" required minlength="6" maxlength="100" autocomplete="new-password">
+
+      <label for="quenMk2">Nhập lại mật khẩu mới</label>
+      <input id="quenMk2" type="password" required minlength="6" maxlength="100" autocomplete="new-password">
+
+      <button type="submit" id="quenBtn">Gửi mã xác thực</button>
+      <button type="button" class="link" data-back="login">Quay lại</button>
+      <div class="msg" id="quenMsg"></div>
     </form>
 
-    <!-- Nhập mã PIN (dùng chung) -->
+    <!-- Nhập mã PIN (đăng ký / quên mật khẩu) -->
     <form class="view hidden" id="pinForm">
       <h1>Nhập mã PIN</h1>
-      <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút)</p>
+      <p class="note">Mã 6 số đã được gửi tới<br><b id="sentTo"></b><br>(hiệu lực 5 phút, xem cả thư mục Spam)</p>
 
       <input id="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
              placeholder="------" autocomplete="one-time-code">
@@ -54,22 +82,18 @@
       <div class="msg" id="pinMsg"></div>
     </form>
 
-    <!-- Đăng ký thành công -->
-    <div class="view hidden" id="done">
-      <h1>Đăng ký thành công</h1>
-      <p class="note">Thông tin của bạn đã được lưu.</p>
-      <button type="button" id="toLogin">Đăng nhập</button>
-    </div>
-
     <a class="link btn" href="/">← Trang chủ</a>
   </div>
 
   <script src="/common.js"></script>
   <script>
-    let mode = 'login';     // mã PIN đang dùng cho 'register' hay 'login'
-    let info = null;        // thông tin đang chờ xác thực
+    // Đã đăng nhập trên máy này (có vé) thì vào thẳng
+    if (load(localStorage, 've')) location.replace('trangchu.html');
 
-    // Hiện 1 màn hình, ẩn các màn khác; thanh tab chỉ hiện ở Đăng ký / Đăng nhập
+    const tk = (data) => post('/api/tk', data);
+    let cho = null;   // yêu cầu đang chờ PIN: {action: 'dang_ky' | 'quen', ...}
+
+    // Hiện 1 màn hình; thanh tab chỉ hiện ở Đăng nhập / Đăng ký
     function view(id) {
       document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.id !== id));
       document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === id));
@@ -77,66 +101,69 @@
       document.querySelectorAll('.msg').forEach((m) => show(m, ''));
     }
     document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => view(t.dataset.view)));
+    document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => view(b.dataset.back)));
 
-    function requestPin() {
-      return post(mode === 'register' ? '/api/register' : '/api/login', info);
+    // Đăng nhập xong: cất vé vào máy (ghi nhớ đăng nhập) rồi sang trang của khách
+    function vaoTrang(out) {
+      keep(localStorage, 've', out.ve);
+      keep(localStorage, 'user', out.user);
+      location.replace('trangchu.html');
     }
 
     function goPin() {
       view('pinForm');
-      $('sentTo').textContent = info.email;
+      $('sentTo').textContent = cho.email;
       $('pin').value = '';
       $('pin').focus();
     }
 
-    $('reg').addEventListener('submit', (e) => {
-      e.preventDefault();
-      mode = 'register';
-      info = {
-        name: $('name').value.trim(),
-        email: $('email').value.trim().toLowerCase(),
-        phone: $('phone').value.trim()
-      };
-      run($('regBtn'), $('regMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
-    });
-
     $('login').addEventListener('submit', (e) => {
       e.preventDefault();
-      mode = 'login';
-      info = { email: $('loginEmail').value.trim().toLowerCase() };
-      run($('loginBtn'), $('loginMsg'), 'Đang gửi mã...', async () => { await requestPin(); goPin(); });
+      run($('loginBtn'), $('loginMsg'), 'Đang đăng nhập...', async () => {
+        vaoTrang(await tk({ action: 'dang_nhap', email: $('loginEmail').value.trim().toLowerCase(), matKhau: $('loginMk').value }));
+      });
+    });
+
+    $('reg').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if ($('regMk').value !== $('regMk2').value) return show($('regMsg'), 'Hai mật khẩu không giống nhau', 'err');
+      cho = {
+        action: 'dang_ky',
+        name: $('name').value.trim(),
+        email: $('email').value.trim().toLowerCase(),
+        phone: $('phone').value.trim(),
+        matKhau: $('regMk').value
+      };
+      run($('regBtn'), $('regMsg'), 'Đang gửi mã...', async () => { await tk(cho); goPin(); });
+    });
+
+    $('toQuen').addEventListener('click', () => {
+      $('quenEmail').value = $('loginEmail').value;
+      view('quen');
+    });
+
+    $('quen').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if ($('quenMk').value !== $('quenMk2').value) return show($('quenMsg'), 'Hai mật khẩu không giống nhau', 'err');
+      cho = { action: 'quen', email: $('quenEmail').value.trim().toLowerCase(), matKhau: $('quenMk').value };
+      run($('quenBtn'), $('quenMsg'), 'Đang gửi mã...', async () => { await tk(cho); goPin(); });
     });
 
     $('pinForm').addEventListener('submit', (e) => {
       e.preventDefault();
       run($('pinBtn'), $('pinMsg'), 'Đang kiểm tra...', async () => {
-        const out = await post('/api/verify', { email: info.email, pin: $('pin').value.trim() });
-        if (out.mode === 'login') {
-          // Lưu phiên (chỉ trong tab này) rồi sang trang sau đăng nhập
-          keep(sessionStorage, 'phien', { token: out.token, user: out.user });
-          location.href = 'trangchu.html';
-        } else {
-          view('done');
-        }
+        vaoTrang(await tk({ action: 'xac_minh', email: cho.email, pin: $('pin').value.trim() }));
       });
     });
 
     $('resend').addEventListener('click', () => {
       run($('resend'), $('pinMsg'), 'Đang gửi mã...', async () => {
-        await requestPin();
+        await tk(cho);
         show($('pinMsg'), 'Đã gửi mã mới', 'ok');
       });
     });
 
-    $('back').addEventListener('click', () => view(mode === 'register' ? 'reg' : 'login'));
-
-    $('toLogin').addEventListener('click', () => {
-      $('loginEmail').value = info.email;
-      view('login');
-    });
-
-    // Đã đăng nhập rồi thì vào thẳng trang sau đăng nhập
-    if (load(sessionStorage, 'phien')) location.href = 'trangchu.html';
+    $('back').addEventListener('click', () => view(cho.action === 'dang_ky' ? 'reg' : 'quen'));
   </script>
 </body>
 </html>

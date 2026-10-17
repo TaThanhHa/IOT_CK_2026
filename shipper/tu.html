@@ -8,56 +8,48 @@
 </head>
 <body class="shipper">
   <div class="card">
+    <h1 style="margin-bottom:4px">Giao cho <span id="khName"></span></h1>
+    <p class="note" id="khPhone"></p>
 
-    <!-- Bấm ＋ để mở từng tủ -->
-    <div class="view" id="luotView">
-      <h1 style="margin-bottom:4px">Giao cho <span id="khName"></span></h1>
-      <p class="note" id="khPhone"></p>
+    <div class="tiles" id="tiles"></div>
+    <div class="bar"><span id="progress"></span><span id="trongLeft"></span></div>
 
-      <div class="tiles" id="tiles"></div>
-      <div class="bar"><span id="progress"></span><span id="trongLeft"></span></div>
-
-      <p class="note" style="margin-top:14px">Bấm <b>＋</b> để mở thêm 1 tủ. Bỏ hàng, đóng hết cửa rồi bấm Xác nhận.</p>
-      <button type="button" id="confirmBtn">Xác nhận hoàn tất</button>
-      <button type="button" class="link" id="backBtn">← Nhập số khác</button>
-      <div class="msg" id="msg"></div>
-    </div>
-
-    <!-- Kết quả -->
-    <div class="view hidden" id="doneView">
-      <h1 id="doneTitle"></h1>
-      <ul class="result" id="doneList"></ul>
-      <button type="button" id="newBtn">Giao đơn mới</button>
-    </div>
+    <p class="note" style="margin-top:14px">Bấm <b>＋</b> để mở 1 tủ trống. Bỏ hàng rồi <b>đẩy cửa lại</b> là xong, không cần xác nhận.</p>
+    <button type="button" id="xongBtn">Xong, giao đơn khác</button>
+    <div class="msg" id="msg"></div>
   </div>
 
   <script src="/common.js"></script>
+  <script src="/theodoi.js"></script>
   <script>
-    // Lượt giao: { phone, name, soNguoi, trong, maLuot, list } — lưu localStorage để tải lại trang không mất
+    // Lượt giao: { phone, name, soNguoi, trong, maLuot, luot } — lưu localStorage để tải lại trang không mất
     const KEY = 'giaoHang';
     const g = load(localStorage, KEY);
     if (!g) location.replace('sdt.html');
 
     const ship = (action, data) => post('/api/ship', Object.assign({ action }, data));
     const save = () => keep(localStorage, KEY, g);
+    let lech = 0;   // giờ máy chủ − giờ máy này (để tính hạn Mở lại)
 
     // ---------- Vẽ các ô tủ ----------
-    const TT = {
-      mo:   ['🔓', 'Đang mở'],
-      dong: ['✅', 'Đã đóng'],
-      loi:  ['⚠️', 'Lỗi']
-    };
+    // tt: mo | co_hang | tra_lai | loi
+    const LOP = { mo: 'mo can-dong', co_hang: 'dong', tra_lai: 'tra_lai', loi: 'loi' };
+    function trangThai(t) {
+      if (t.tt === 'mo') return ['🔓', t.cua === 'mo' ? 'Bỏ hàng rồi đóng cửa' : 'Đã mở khoá'];
+      if (t.tt === 'co_hang') return ['✅', `Đã giao · ${t.gam == null ? '?' : t.gam} g`];
+      if (t.tt === 'tra_lai') return ['↩️', 'Trống, đã trả tủ'];
+      return ['⚠️', 'Hết giờ, cửa chưa đóng'];
+    }
 
-    // list = [{id, cua: 'mo'|'dong'|'loi'}], nhay = các tủ cần nhắc đóng
-    function render(nhay) {
-      const list = g.list || [];
+    function render() {
       const box = $('tiles');
       box.innerHTML = '';
-      list.forEach((t) => {
+      (g.luot || []).forEach((t) => {
+        const [icon, st] = trangThai(t);
         const el = document.createElement('div');
-        el.className = 'tile ' + t.cua + ((nhay || []).includes(t.id) ? ' can-dong' : '');
-        el.innerHTML = `<b>Tủ ${t.id}</b><span class="icon">${TT[t.cua][0]}</span><span class="st">${TT[t.cua][1]}</span>`;
-        if (t.cua === 'dong') {
+        el.className = 'tile ' + LOP[t.tt];
+        el.innerHTML = `<b>${tenTu(t.id)}</b><span class="icon">${icon}</span><span class="st">${st}</span>`;
+        if (t.tt === 'co_hang' && Date.now() + lech < t.moLaiDen) {
           const b = document.createElement('button');
           b.type = 'button';
           b.textContent = 'Mở lại';
@@ -75,65 +67,52 @@
       plus.onclick = () => openTu(plus);
       box.appendChild(plus);
 
-      const dung = list.filter((t) => t.cua !== 'loi');
-      $('progress').textContent = dung.length
-        ? `Đã đóng ${dung.filter((t) => t.cua === 'dong').length}/${dung.length}` : 'Chưa mở tủ nào';
+      const giao = (g.luot || []).filter((t) => t.tt === 'co_hang').length;
+      $('progress').textContent = (g.luot || []).length ? `Đã giao ${giao} tủ` : 'Chưa mở tủ nào';
       $('trongLeft').textContent = g.trong ? `Còn ${g.trong} tủ trống` : '';
-      $('confirmBtn').disabled = dung.length === 0;
-      $('backBtn').classList.toggle('hidden', !!g.maLuot);   // đã mở tủ thì không quay lại được
+    }
+    setInterval(render, 5000);   // ẩn nút Mở lại khi hết hạn
+
+    // Cập nhật từ Node-RED; trả true nếu còn tủ đang mở (cần theo dõi tiếp)
+    function capNhat(out) {
+      const cu = {};
+      (g.luot || []).forEach((t) => { cu[t.id] = t; });
+      out.luot.forEach((t) => {
+        if (!cu[t.id] || cu[t.id].tt !== 'mo' || t.tt === 'mo') return;
+        if (t.tt === 'co_hang') show($('msg'), `${tenTu(t.id)} đã đóng — đã giao ${t.gam} g ✓`, 'ok');
+        else if (t.tt === 'tra_lai') show($('msg'), `${tenTu(t.id)} đóng lại trống, đã trả tủ`, 'ok');
+        else show($('msg'), `${tenTu(t.id)} hết giờ mà cửa chưa đóng. Hãy đóng cửa lại.`, 'err');
+      });
+      out.luot.forEach((t) => { cu[t.id] = t; });   // ô đã trả tủ giữ nguyên trên màn hình
+      g.luot = Object.keys(cu).sort().map((id) => cu[id]);
+      if (out.trong != null) g.trong = out.trong;
+      if (out.bayGio) lech = out.bayGio - Date.now();
+      save();
+      render();
+      return g.luot.some((t) => t.tt === 'mo');
     }
 
-    // Cập nhật từ câu trả lời của Node-RED
-    function apply(out) {
-      if (out.maLuot) g.maLuot = out.maLuot;
-      if (out.luot) g.list = out.luot;
-      if (out.trong != null) g.trong = out.trong;
-      save();
-    }
+    const td = theoDoi(
+      (biet) => ship('cho', { maLuot: g.maLuot, biet }),
+      capNhat,
+      (err) => show($('msg'), err.message, 'err')
+    );
 
     // ---------- ＋ hoặc Mở lại ----------
     function openTu(btn, id) {
-      run(btn, $('msg'), id ? `Đang mở lại tủ ${id}...` : 'Đang mở tủ...', async () => {
+      run(btn, $('msg'), id ? `Đang mở lại ${tenTu(id)}...` : 'Đang mở tủ...', async () => {
         const out = await ship('open', { phone: g.phone, maLuot: g.maLuot || undefined, tu: id });
-        apply(out);
-        render();
-        show($('msg'), out.note || '', /lỗi|không/.test(out.note || '') ? 'err' : 'ok');
+        g.maLuot = out.maLuot;
+        capNhat(out);
+        show($('msg'), `Đã mở ${tenTu(out.moTu)}. Bỏ hàng rồi đẩy cửa lại.`, 'ok');
+        td.batDau(out.ban);
       });
     }
 
-    // ---------- Xác nhận ----------
-    $('confirmBtn').addEventListener('click', () => {
-      run($('confirmBtn'), $('msg'), 'Đang kiểm tra cửa tủ...', async () => {
-        const out = await ship('confirm', { maLuot: g.maLuot });
-        if (!out.xong) {
-          apply(out);
-          render(out.chuaDong);
-          show($('msg'), `Tủ ${out.chuaDong.join(', ')} chưa đóng. Hãy đóng cửa rồi bấm Xác nhận lại.`, 'err');
-          return;
-        }
-        keep(localStorage, KEY, null);
-        showDone(out);
-      });
-    });
-
-    function showDone(out) {
-      document.querySelectorAll('.view').forEach((v) => v.classList.toggle('hidden', v.id !== 'doneView'));
-      const list = $('doneList');
-      list.innerHTML = '';
-      const add = (text) => { const li = document.createElement('li'); li.textContent = text; list.appendChild(li); };
-
-      if (out.coHang.length) {
-        $('doneTitle').textContent = 'Đã giao xong';
-        add(`📦 Có hàng: tủ ${out.coHang.join(', ')}`);
-        add(out.daMail ? '✉️ Đã gửi mail báo khách kèm mã nhận hàng' : '⚠️ Chưa gửi được mail, khách vẫn thấy khi đăng nhập');
-      } else {
-        $('doneTitle').textContent = 'Không có kiện nào được gửi';
-      }
-      if (out.traLai.length) add(`↩️ Tủ trống đã trả lại: ${out.traLai.join(', ')}`);
-    }
-
-    $('newBtn').addEventListener('click', () => location.replace('sdt.html'));
-    $('backBtn').addEventListener('click', () => {
+    $('xongBtn').addEventListener('click', () => {
+      if ((g.luot || []).some((t) => t.tt === 'mo')
+        && !confirm('Còn tủ đang mở. Tủ sẽ tự chốt khi cửa được đóng. Vẫn kết thúc?')) return;
+      td.dung();
       keep(localStorage, KEY, null);
       location.replace('sdt.html');
     });
@@ -145,16 +124,13 @@
       render();
       if (!g.trong && !g.maLuot) show($('msg'), 'Hiện không còn tủ trống', 'err');
 
-      // Tải lại trang giữa chừng: hỏi Node-RED 1 lần để vẽ đúng trạng thái
+      // Tải lại trang giữa chừng: hỏi Node-RED ngay để vẽ đúng trạng thái
       if (g.maLuot) {
-        ship('status', { maLuot: g.maLuot }).then((out) => {
-          if (out.xong) { keep(localStorage, KEY, null); location.replace('sdt.html'); return; }
-          apply(out);
-          render();
-        }).catch((err) => {
-          if (/không còn/.test(err.message)) { keep(localStorage, KEY, null); location.replace('sdt.html'); }
-          else show($('msg'), err.message, 'err');
-        });
+        const biet = {};
+        (g.luot || []).forEach((t) => { biet[t.id] = -1; });
+        ship('cho', { maLuot: g.maLuot, biet }).then((out) => {
+          if (capNhat(out)) td.batDau(out.ban);
+        }).catch((err) => show($('msg'), err.message, 'err'));
       }
     }
   </script>

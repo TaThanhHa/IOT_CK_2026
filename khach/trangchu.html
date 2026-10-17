@@ -3,28 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Khách hàng - Trang của bạn</title>
+  <title>Khách hàng - Hàng của bạn</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="card">
-    <!-- Lấy hàng: mỗi đơn 1 khung -->
-    <h2>📦 Hàng chờ nhận</h2>
-    <div id="dsDon"><p class="note">Đang tải...</p></div>
-    <div class="msg" id="donMsg"></div>
+    <p class="note" id="chao"></p>
+    <h2 id="tieuDe">📦 Hàng chờ lấy</h2>
+    <div id="dsTu"><p class="note">Đang tải...</p></div>
+    <button type="button" class="hidden" id="moHet">Mở tất cả</button>
+    <div class="msg" id="tuMsg"></div>
 
     <!-- Sửa thông tin: bấm để mở -->
-    <details class="sua" id="suaBox">
+    <details class="sua">
       <summary>✏️ Sửa thông tin</summary>
       <form id="profile">
         <p class="note" id="pEmail" style="text-align:left"></p>
 
         <label for="pName">Họ và tên</label>
-        <input id="pName" required maxlength="100">
+        <input id="pName" required maxlength="100" autocomplete="name">
 
         <label for="pPhone">Số điện thoại</label>
         <input id="pPhone" type="tel" required pattern="(0|\+84)[0-9]{9,10}"
-               title="Số điện thoại bắt đầu bằng 0 hoặc +84">
+               title="Số điện thoại bắt đầu bằng 0 hoặc +84" autocomplete="tel">
+
+        <label for="pMkMoi">Mật khẩu mới (bỏ trống nếu không đổi)</label>
+        <input id="pMkMoi" type="password" minlength="6" maxlength="100" autocomplete="new-password">
+
+        <label for="pMk">Mật khẩu hiện tại (để xác nhận)</label>
+        <input id="pMk" type="password" required autocomplete="current-password">
 
         <button type="submit" id="saveBtn">Lưu thay đổi</button>
         <div class="msg" id="profileMsg"></div>
@@ -32,45 +39,103 @@
     </details>
 
     <button type="button" class="link" id="logout">Đăng xuất</button>
+    <button type="button" class="link" id="logoutAll">Đăng xuất khỏi mọi thiết bị</button>
   </div>
 
   <script src="/common.js"></script>
-  <script src="/khach/layhang.js"></script>
+  <script src="/theodoi.js"></script>
   <script>
-    // Phiên đăng nhập do trang dangnhap.html lưu (token Node-RED cấp, hiệu lực 15 phút)
-    const phien = load(sessionStorage, 'phien');
-    if (!phien) location.replace('dangnhap.html');
+    // Vé ghi nhớ đăng nhập (dangnhap.html cất vào máy)
+    const ve = load(localStorage, 've');
+    if (!ve) location.replace('dangnhap.html');
 
-    function hetPhien(err) {   // phiên hết hạn → về trang đăng nhập
-      if (!/^Phiên/.test(err.message)) return;
-      keep(sessionStorage, 'phien', null);
-      setTimeout(() => { location.href = 'dangnhap.html'; }, 1500);
+    const lay = (data) => post('/api/lay', Object.assign({ ve }, data));
+    const tk = (data) => post('/api/tk', Object.assign({ ve }, data));
+    let ds = [];   // [{id, tt: cho|mo|ban|xong, gioGiao, gam}]
+
+    function thoat() {
+      keep(localStorage, 've', null);
+      keep(localStorage, 'user', null);
+      location.replace('dangnhap.html');
+    }
+    function hetPhien(err) {   // vé hết hạn → về trang đăng nhập
+      if (!/^Phiên/.test(err.message)) return false;
+      show($('tuMsg'), err.message, 'err');
+      setTimeout(thoat, 1500);
+      return true;
     }
 
-    // ---------- Hàng chờ nhận ----------
-    async function taiDon() {
-      const box = $('dsDon');
-      try {
-        const out = await post('/api/lay', { action: 'ds', token: phien.token });
-        box.innerHTML = '';
-        if (!out.ds.length) {
-          box.innerHTML = '<p class="note">Không có đơn nào</p>';
-          return;
+    // ---------- Danh sách tủ ----------
+    const TT = {
+      mo:   'Đang mở — lấy hàng rồi đẩy cửa lại',
+      ban:  'Đang được mở',
+      xong: '✅ Đã lấy xong'
+    };
+
+    function veDs() {
+      const con = ds.filter((x) => x.tt !== 'xong');
+      $('tieuDe').textContent = con.length ? `📦 Bạn có ${con.length} tủ hàng chờ lấy` : '📦 Không có hàng nào chờ lấy';
+      const box = $('dsTu');
+      box.innerHTML = '';
+      ds.forEach((x) => {
+        const row = document.createElement('div');
+        row.className = 'hang ' + x.tt;
+        const trai = document.createElement('div');
+        trai.innerHTML = `<b>${tenTu(x.id)}</b>` + (x.tt === 'xong' ? '' : `<small>Giao ${x.gioGiao} · ${x.gam == null ? '?' : x.gam} g</small>`);
+        row.appendChild(trai);
+        if (x.tt === 'cho') {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = 'Mở tủ';
+          b.onclick = () => moTu(b, { tu: x.id });
+          row.appendChild(b);
+        } else {
+          const st = document.createElement('span');
+          st.className = 'st';
+          st.textContent = TT[x.tt];
+          row.appendChild(st);
         }
-        out.ds.forEach((don) => {
-          const khung = taoEl('div', 'don');
-          box.appendChild(khung);
-          veDon(khung, don, phien.token, () => setTimeout(taiDon, 3000));
-        });
-      } catch (err) {
-        box.innerHTML = '';
-        show($('donMsg'), err.message, 'err');
-        hetPhien(err);
-      }
+        box.appendChild(row);
+      });
+      $('moHet').classList.toggle('hidden', ds.filter((x) => x.tt === 'cho').length < 2);
     }
+
+    // Cập nhật từ Node-RED; trả true nếu còn tủ đang mở (cần theo dõi tiếp)
+    function capNhat(out) {
+      const truoc = {};
+      ds.forEach((x) => { truoc[x.id] = x; });
+      out.ds.forEach((x) => {
+        if (!truoc[x.id] || truoc[x.id].tt !== 'mo') return;
+        if (x.tt === 'xong') show($('tuMsg'), `Đã lấy xong ${tenTu(x.id)}. Cảm ơn bạn!`, 'ok');
+        else if (x.tt === 'cho') show($('tuMsg'), `${tenTu(x.id)} đã đóng, vẫn còn đồ (${x.gam} g)`, 'ok');
+      });
+      ds = out.ds;
+      veDs();
+      return ds.some((x) => x.tt === 'mo');
+    }
+
+    const td = theoDoi(
+      (biet) => lay({ action: 'cho', biet }),
+      capNhat,
+      (err) => { if (hetPhien(err)) td.dung(); else show($('tuMsg'), err.message, 'err'); }
+    );
+
+    function moTu(btn, data) {
+      run(btn, $('tuMsg'), 'Đang mở tủ...', async () => {
+        const out = await lay(Object.assign({ action: 'mo' }, data));
+        capNhat(out);
+        show($('tuMsg'), out.moTu.length
+          ? `Đã mở ${out.moTu.map(tenTu).join(', ')}. Lấy hàng rồi đẩy cửa lại là xong.`
+          : 'Tủ đang mở sẵn. Lấy hàng rồi đẩy cửa lại là xong.', 'ok');
+        td.batDau(out.ban);
+      });
+    }
+    $('moHet').addEventListener('click', () => moTu($('moHet'), { tatCa: true }));
 
     // ---------- Sửa thông tin ----------
     function fillProfile(u) {
+      if (!u) return;
+      $('chao').textContent = 'Xin chào, ' + u.name;
       $('pEmail').textContent = u.email;
       $('pName').value = u.name;
       $('pPhone').value = u.phone;
@@ -80,16 +145,18 @@
       e.preventDefault();
       run($('saveBtn'), $('profileMsg'), 'Đang lưu...', async () => {
         try {
-          const out = await post('/api/update', {
-            token: phien.token,
+          const out = await tk({
+            action: 'sua',
             name: $('pName').value.trim(),
-            phone: $('pPhone').value.trim()
+            phone: $('pPhone').value.trim(),
+            matKhau: $('pMk').value,
+            matKhauMoi: $('pMkMoi').value
           });
-          phien.user = out.user;
-          keep(sessionStorage, 'phien', phien);
+          keep(localStorage, 'user', out.user);
           fillProfile(out.user);
+          $('pMk').value = $('pMkMoi').value = '';
           show($('profileMsg'), 'Đã lưu thay đổi', 'ok');
-          taiDon();   // đổi SĐT thì danh sách đơn cũng đổi
+          taiDs();   // đổi SĐT thì danh sách tủ cũng đổi
         } catch (err) {
           hetPhien(err);
           throw err;
@@ -98,13 +165,37 @@
     });
 
     $('logout').addEventListener('click', () => {
-      keep(sessionStorage, 'phien', null);
-      location.href = 'dangnhap.html';
+      run($('logout'), $('tuMsg'), 'Đang đăng xuất...', async () => {
+        await tk({ action: 'dang_xuat' }).catch(() => {});
+        thoat();
+      });
+    });
+    $('logoutAll').addEventListener('click', () => {
+      if (!confirm('Đăng xuất khỏi mọi điện thoại / máy tính đang đăng nhập tài khoản này?')) return;
+      run($('logoutAll'), $('tuMsg'), 'Đang đăng xuất...', async () => {
+        await tk({ action: 'dang_xuat_het' });
+        thoat();
+      });
     });
 
-    if (phien) {
-      fillProfile(phien.user);
-      taiDon();
+    // ---------- Mở trang ----------
+    async function taiDs() {
+      try {
+        const out = await lay({ action: 'ds' });
+        if (capNhat(out)) td.batDau(out.ban);   // đang lấy dở (tải lại trang) thì theo dõi tiếp
+      } catch (err) {
+        $('dsTu').innerHTML = '';
+        if (!hetPhien(err)) show($('tuMsg'), err.message, 'err');
+      }
+    }
+
+    if (ve) {
+      fillProfile(load(localStorage, 'user'));
+      tk({ action: 'vao' }).then((out) => {   // làm mới thông tin + gia hạn vé
+        keep(localStorage, 'user', out.user);
+        fillProfile(out.user);
+      }).catch(hetPhien);
+      taiDs();
     }
   </script>
 </body>

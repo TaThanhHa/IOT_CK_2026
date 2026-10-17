@@ -34,7 +34,7 @@
       run($('checkBtn'), $('msg'), 'Đang tra cứu...', async () => {
         const out = await post('/api/ship', { action: 'check', phone });
         // Lượt giao mới: chưa có maLuot, sẽ có khi bấm ＋ lần đầu
-        keep(localStorage, 'giaoHang', { phone, name: out.name, soNguoi: out.soNguoi, trong: out.trong, maLuot: null });
+        keep(localStorage, 'giaoHang', { phone, name: out.name, soNguoi: out.soNguoi, trong: out.trong, maLuot: null, luot: [] });
         location.href = 'tu.html';
       });
     });

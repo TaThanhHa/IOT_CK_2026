@@ -29,6 +29,9 @@ async function run(btn, msgEl, text, fn) {
   finally { btn.disabled = false; }
 }
 
+// Tên tủ để hiện: "A-2" → "Tủ 2" (trạm hiện ở dòng phụ nếu cần)
+const tenTu = (id) => 'Tủ ' + String(id).split('-')[1];
+
 // Đọc / ghi object vào bộ nhớ trình duyệt (store = localStorage hoặc sessionStorage)
 function load(store, key) {
   try { return JSON.parse(store.getItem(key)); } catch (e) { return null; }

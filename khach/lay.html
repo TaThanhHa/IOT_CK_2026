@@ -4,31 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lấy hàng</title>
-  <link rel="stylesheet" href="/style.css">
+  <!-- Link lấy hàng trong mail cũ: nay khách đăng nhập để lấy hàng -->
+  <meta http-equiv="refresh" content="0; url=/khach/dangnhap.html">
 </head>
 <body>
-  <!-- Mở từ link trong mail: /khach/lay.html?ve=... (không cần đăng nhập, chỉ lấy hàng) -->
-  <div class="card">
-    <h1>📦 Lấy hàng</h1>
-    <div id="don"><p class="note">Đang tải đơn hàng...</p></div>
-    <div class="msg" id="msg"></div>
-    <a class="link btn" href="/khach/dangnhap.html">Muốn sửa thông tin? Đăng nhập</a>
-  </div>
-
-  <script src="/common.js"></script>
-  <script src="/khach/layhang.js"></script>
-  <script>
-    const ve = new URLSearchParams(location.search).get('ve') || '';
-
-    (async () => {
-      try {
-        const out = await post('/api/lay', { action: 'xem', ve });
-        veDon($('don'), out.ds[0], null, null);
-      } catch (err) {
-        $('don').innerHTML = '';
-        show($('msg'), err.message, 'err');
-      }
-    })();
-  </script>
+  <a href="/khach/dangnhap.html">Đăng nhập để lấy hàng</a>
 </body>
 </html>
